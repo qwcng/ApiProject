@@ -12,7 +12,7 @@ Route::get('/test/{prompt?}', function (Request $request, $prompt = null) {
     if($prompt) {
         $polecenie=$prompt;
     } else {
-        $polecenie="Opowiedz mi dowcip o programistach.";
+        $polecenie="Opowiedz mi coś nieziemsko ciekawego.";
     }
     
     $response = Http::withToken(env('OPENAI_API_KEY'))
