@@ -12,7 +12,7 @@ class RequestController extends Controller
     {
         $request->validate([
             'prompt' => 'required|string',
-            'image'  => 'nullable|file',
+            'image'  => 'nullable|string',
             'roles'   => 'nullable|string',
         ]);
 
@@ -23,17 +23,23 @@ class RequestController extends Controller
             "text" => $prompt
         ];
         $role = $request->input('roles', 'Jesteś pomocnym asystentem.');
-        if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $mime = $file->getMimeType();
-            $base64 = base64_encode(file_get_contents($file->getRealPath()));
+        if($request->filled('image')) {
+            $base64 = $request->input('image');
+            if (preg_match('/^data:(.*?);base64,/', $base64, $matches)) {
+                $mime = $matches[1];
+            } else {
+                $mime = 'image/png';
+                $base64 = 'data:image/png;base64,' . $base64;
+            }
+            $imageData = base64_decode($base64);
+            $filename = 'image_' . time() . '.' .'jpg';
+            Storage::disk('local')->put('uploads/' . $filename, $imageData);
             $content[] = [
                 "type" => "image_url",
                 "image_url" => [
-                    "url" => "data:$mime;base64,$base64"
+                    "url" => $base64
                 ]
             ];
-            Storage::disk('local')->put('uploads/' . $file->getClientOriginalName().time(), file_get_contents($file->getRealPath()));
         }
         
 
