@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\RequestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Http;
@@ -24,6 +25,7 @@ Route::get('/test/{prompt?}', function (Request $request, $prompt = null) {
             ],
                 'max_tokens' => 100,
             ]);
+            
 
         if ($response->failed()) {
             return response()->json([
@@ -41,3 +43,4 @@ Route::get('/test/{prompt?}', function (Request $request, $prompt = null) {
         ]);
     
 });
+Route::post('/send',[RequestController::class, 'send'])->name('send');
