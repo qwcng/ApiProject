@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\GeminiController;
 use App\Http\Controllers\RequestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -43,4 +44,6 @@ Route::get('/test/{prompt?}', function (Request $request, $prompt = null) {
         ]);
     
 });
+
+Route::post('/gemini/chat', [GeminiController::class, 'chat']);
 Route::post('/send',[RequestController::class, 'send'])->name('send');
