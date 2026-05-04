@@ -15,12 +15,15 @@ class GeminiController extends Controller
     /**
      * Zwraca listę narzędzi (tools), które AI może wywoływać
      */
+    public function __construct()
+{
+    $this->apiKeys = [
+        env('GOOGLE_API_KEY_1'),
+    ];
+}
     private function getTools()
     {   
-        $this->apiKeys = [
-            env('GOOGLE_API_KEY_1'),
-            
-        ];
+       
         return [[
             "functionDeclarations" => [
                 [
