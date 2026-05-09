@@ -251,6 +251,7 @@ EOT;
                 if (isset($part['functionCall'])) {
                     $calls[] = $part['functionCall'];
                 }
+                
             }
 
             // Zwracamy spójny obiekt na Frontend
