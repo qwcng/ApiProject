@@ -221,6 +221,7 @@ public function chat(Request $request)
             if ($response->successful()) {
                 $data = $response->json();
                 Log::info('Odpowiedź z Gemini', ['response' => $data]);
+                Log::info("Klucz API [Indeks: {$currentKeyIndex}] działa poprawnie.");
                 $candidate = $data['candidates'][0]['content']['parts'] ?? [];
                 
                 $text = "";
@@ -258,6 +259,7 @@ public function chat(Request $request)
         // --- POZA PĘTLĄ (Jeśli wszystkie klucze wyczerpane lub padło API Google) ---
         if ($response && ($response->status() === 429 || $response->status() === 503)) {
             Log::info('Odpowiedź z Gemini 429 lub 503 (brak kluczy lub przeciążenie)', ['response' => $response->json()]);
+            Log::info("Klucz API [Indeks: " . Cache::get('gemini_api_key_index', 0) . "] działa źle.");
             return response()->json([
                 'status' => 'overload'
             ]);
