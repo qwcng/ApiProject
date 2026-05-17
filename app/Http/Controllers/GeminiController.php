@@ -247,6 +247,7 @@ public function chat(Request $request)
             // Sprawdzamy, czy ten konkretny klucz wyczerpał limit całkowicie
             if ($response->status() === 429 && $errorStatus === 'RESOURCE_EXHAUSTED') {
                 Log::warning("Klucz API [Indeks: {$currentKeyIndex}] zablokowany (RESOURCE_EXHAUSTED). Przełączam na następny...");
+                Log::error($response->json());
                 
                 // Ustawiamy nowy klucz natychmiastowo i kręcimy pętlą jeszcze raz
                 Cache::put('gemini_api_key_index', ($currentKeyIndex + 1) % count($this->apiKeys));
@@ -258,8 +259,9 @@ public function chat(Request $request)
         }
         // --- POZA PĘTLĄ (Jeśli wszystkie klucze wyczerpane lub padło API Google) ---
         if ($response && ($response->status() === 429 || $response->status() === 503)) {
-            Log::info('Odpowiedź z Gemini 429 lub 503 (brak kluczy lub przeciążenie)', ['response' => $response->json()]);
+            Log::error('Odpowiedź z Gemini 429 lub 503 (brak kluczy lub przeciążenie)', ['response' => $response->json()]);
             Log::info("Klucz API [Indeks: " . Cache::get('gemini_api_key_index', 0) . "] działa źle.");
+            Log::error($response->json());
             return response()->json([
                 'status' => 'overload'
             ]);
