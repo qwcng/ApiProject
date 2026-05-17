@@ -144,6 +144,7 @@ public function chat(Request $request)
         $functionResponses = $request->input('functionResponses'); // Wyniki wywołanych na froncie funkcji
         $systemPrompt = $this->getSystemPrompt($context);
         $contents = [];
+        
         // 1. Zawsze inicjujemy kontekst jako pierwsza wiadomość usera -> odp modelu
         $contents[] = [
             "role" => "user",
@@ -153,6 +154,7 @@ public function chat(Request $request)
             "role" => "model",
             "parts" => [["text" => "Cześć! Jestem Twoim trenerem Vitality. W czym mogę Ci dzisiaj pomóc?"]]
         ];
+        
         // 2. Dodajemy całą historię chatu z frontu
         foreach ($history as $msg) {
             $parts = [];
@@ -176,6 +178,7 @@ public function chat(Request $request)
                 "parts" => $parts
             ];
         }
+        
         // 3. Dodajemy nową "wiadomość" do wysłania
         if ($functionResponses) {
             $parts = [];
@@ -197,10 +200,12 @@ public function chat(Request $request)
                 "parts" => [["text" => $userMessage]]
             ];
         }
+        
         // --- ROUND-ROBIN Z ZABEZPIECZENIEM (AUTO-RETRY) ---
         $maxRetries = count($this->apiKeys);
         $attempt = 0;
         $response = null;
+        
         while ($attempt < $maxRetries) {
             $currentKeyIndex = (int) Cache::get('gemini_api_key_index', 0);
             if (!isset($this->apiKeys[$currentKeyIndex])) {
@@ -213,10 +218,12 @@ public function chat(Request $request)
                 "contents" => $contents,
                 "tools" => $this->getTools()
             ];
+            
             // Odpytanie Gemini przez REST API
             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                             ->timeout(30)
                             ->post($url, $payload);
+                            
             // --- OBSŁUGA SUKCESU ---
             if ($response->successful()) {
                 $data = $response->json();
@@ -234,6 +241,7 @@ public function chat(Request $request)
                         $calls[] = $part['functionCall'];
                     }
                 }
+                
                 // Udane zapytanie. Ustawiamy kolejny klucz na poczet przyszłego zapytania (zwykły round-robin)
                 Cache::put('gemini_api_key_index', ($currentKeyIndex + 1) % count($this->apiKeys));
                 return response()->json([
@@ -241,12 +249,18 @@ public function chat(Request $request)
                     'calls' => $calls
                 ]);
             }
-            // --- OBSŁUGA BŁĘDÓW API ---
+            
+            // --- OBSŁUGA BŁĘDÓW API (AUTO-RETRY) ---
             $errorData = $response->json();
             $errorStatus = $errorData['error']['status'] ?? '';
-            // Sprawdzamy, czy ten konkretny klucz wyczerpał limit całkowicie
-            if ($response->status() === 429 && $errorStatus === 'RESOURCE_EXHAUSTED') {
-                Log::warning("Klucz API [Indeks: {$currentKeyIndex}] zablokowany (RESOURCE_EXHAUSTED). Przełączam na następny...");
+            
+            // Przełączamy klucz jeśli mamy przekroczony limit (429) LUB klucz jest martwy/zły (403/400)
+            if (
+                ($response->status() === 429 && $errorStatus === 'RESOURCE_EXHAUSTED') 
+                || $response->status() === 403 
+                || $response->status() === 400
+            ) {
+                Log::warning("Klucz API [Indeks: {$currentKeyIndex}] zablokowany (Status: " . $response->status() . "). Przełączam na następny...");
                 Log::error($response->json());
                 
                 // Ustawiamy nowy klucz natychmiastowo i kręcimy pętlą jeszcze raz
@@ -254,21 +268,23 @@ public function chat(Request $request)
                 $attempt++;
                 continue; 
             }
-            // Inny rodzaj błędu (zwykłe przeciążenie serwera, błąd wewnętrzny Google itd.) - przerywamy pętlę.
+            
+            // Inny rodzaj błędu (zwykłe przeciążenie serwera Google 503, itp.) - przerywamy pętlę.
             break; 
         }
+        
         // --- POZA PĘTLĄ (Jeśli wszystkie klucze wyczerpane lub padło API Google) ---
         if ($response && ($response->status() === 429 || $response->status() === 503)) {
-            Log::error('Odpowiedź z Gemini 429 lub 503 (brak kluczy lub przeciążenie)', ['response' => $response->json()]);
+            Log::error('Odpowiedź z Gemini 429 lub 503 (brak kluczy lub przeciążenie serwerów)', ['response' => $response->json()]);
             Log::info("Klucz API [Indeks: " . Cache::get('gemini_api_key_index', 0) . "] działa źle.");
-            Log::error($response->json());
             return response()->json([
                 'status' => 'overload'
             ]);
         }
-        // --- INNE KRYTYCZNE BŁĘDY (np. źle złożony prompt) ---
+        
+        // --- INNE KRYTYCZNE BŁĘDY (np. padły wszystkie klucze) ---
         return response()->json([
-            'error' => 'Błąd podczas komunikacji z API Gemini',
+            'error' => 'Błąd podczas komunikacji z API Gemini (wymagane sprawdzenie kluczy)',
             'details' => $response ? $response->json() : 'Brak odpowiedzi API'
         ], $response ? $response->status() : 500);
     }
