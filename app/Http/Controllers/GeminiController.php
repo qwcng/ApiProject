@@ -3,6 +3,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+
 class GeminiController extends Controller
 {
     // Lista Twoich kluczy API
@@ -216,6 +218,7 @@ EOT;
         // --- OBSŁUGA SUKCESU ---
         if ($response->successful()) {
             $data = $response->json();
+            Log::info('Odpowiedź z Gemini', ['response' => $data]);
             $candidate = $data['candidates'][0]['content']['parts'] ?? [];
             
             $text = "";
@@ -237,14 +240,17 @@ EOT;
         }
         // --- OBSŁUGA PRZECIĄŻENIA API GOOGLE (Rate Limit / Service Unavailable) ---
         if ($response->status() === 429 || $response->status() === 503) {
+            Log::info('Odpowiedź z Gemini 429 lub 503', ['response' => $response->json()]);
             return response()->json([
                 'status' => 'overload'
             ]);
         }
         // --- OBSŁUGA INNYCH BŁĘDÓW ---
         return response()->json([
+             
             'error' => 'Błąd podczas komunikacji z API Gemini',
             'details' => $response->json()
         ], $response->status());
+        
     }
 }
